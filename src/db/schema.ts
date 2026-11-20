@@ -163,11 +163,32 @@ export const reports = pgTable('reports', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// 9. Property price-drop alert subscriptions
+export const priceDropAlerts = pgTable(
+  'price_drop_alerts',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    listingId: integer('listing_id')
+      .references(() => listings.id, { onDelete: 'cascade' })
+      .notNull(),
+    subscribedPriceRwf: integer('subscribed_price_rwf').notNull(),
+    lastNotifiedPriceRwf: integer('last_notified_price_rwf'),
+    notifiedDrop: boolean('notified_drop').notNull().default(false),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('price_drop_alerts_user_listing_idx').on(table.userId, table.listingId)]
+);
+
 // Drizzle Relations
 export const usersRelations = relations(users, ({ many }) => ({
   listings: many(listings),
   favorites: many(favorites),
   savedSearches: many(savedSearches),
+  priceDropAlerts: many(priceDropAlerts),
   sentRequests: many(viewingRequests, { relationName: 'tenantRequests' }),
   receivedRequests: many(viewingRequests, { relationName: 'landlordRequests' }),
   reports: many(reports),
@@ -180,6 +201,7 @@ export const listingsRelations = relations(listings, ({ one, many }) => ({
   }),
   photos: many(listingPhotos),
   favorites: many(favorites),
+  priceDropAlerts: many(priceDropAlerts),
   viewingRequests: many(viewingRequests),
   reports: many(reports),
 }));
@@ -234,5 +256,16 @@ export const reportsRelations = relations(reports, ({ one }) => ({
   reporter: one(users, {
     fields: [reports.reporterId],
     references: [users.id],
+  }),
+}));
+
+export const priceDropAlertsRelations = relations(priceDropAlerts, ({ one }) => ({
+  user: one(users, {
+    fields: [priceDropAlerts.userId],
+    references: [users.id],
+  }),
+  listing: one(listings, {
+    fields: [priceDropAlerts.listingId],
+    references: [listings.id],
   }),
 }));

@@ -63,6 +63,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       method: 'POST',
       body: JSON.stringify({ identifier, password }),
     });
+    if (auth.currentUser) {
+      await signOut(auth).catch(() => {});
+    }
     setToken(data.token);
     setUser(data.user);
   };
@@ -82,6 +85,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify(payload),
       }
     );
+    if (auth.currentUser) {
+      await signOut(auth).catch(() => {});
+    }
     setToken(data.token);
     setUser(data.user);
     return { demoOtp: data.demoOtp };

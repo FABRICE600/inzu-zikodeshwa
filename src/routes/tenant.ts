@@ -6,12 +6,14 @@ import {
   favorites,
   listingPhotos,
   listings,
+  priceDropAlerts,
   reports,
   savedSearches,
   users,
   viewingRequests,
 } from '../db/schema.ts';
-import { AuthRequest, requireAuth } from '../middleware/auth.ts';
+import { requireAuth } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.ts';
 
 const router = Router();
 
@@ -305,6 +307,174 @@ router.post('/reports', requireAuth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Create report error:', error);
     res.status(500).json({ error: 'Could not submit report.' });
+  }
+});
+
+// Price Drop Alerts
+router.get('/price-alerts', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const alertRows = await db
+      .select()
+      .from(priceDropAlerts)
+      .where(eq(priceDropAlerts.userId, req.dbUser!.id))
+      .orderBy(desc(priceDropAlerts.updatedAt));
+
+    if (alertRows.length === 0) {
+      return res.json({ items: [], listingIds: [], droppedCount: 0 });
+    }
+
+    const listingIds = alertRows.map((a) => a.listingId);
+    const [listingRows, photos] = await Promise.all([
+      db.select().from(listings).where(inArray(listings.id, listingIds)),
+      db
+        .select()
+        .from(listingPhotos)
+        .where(inArray(listingPhotos.listingId, listingIds))
+        .orderBy(asc(listingPhotos.displayOrder)),
+    ]);
+
+    const photoMap = new Map<number, typeof photos>();
+    for (const p of photos) {
+      const arr = photoMap.get(p.listingId) || [];
+      arr.push(p);
+      photoMap.set(p.listingId, arr);
+    }
+
+    const listingMap = new Map(listingRows.map((l) => [l.id, l]));
+
+    const items = alertRows
+      .map((alert) => {
+        const listing = listingMap.get(alert.listingId);
+        if (!listing) return null;
+        const lPhotos = photoMap.get(listing.id) || [];
+        const coverPhoto = lPhotos.find((p) => p.isCover)?.url || lPhotos[0]?.url || '';
+        const hasDropped = listing.priceRwf < alert.subscribedPriceRwf || alert.notifiedDrop;
+        const savingsRwf = Math.max(0, alert.subscribedPriceRwf - listing.priceRwf);
+        return {
+          ...alert,
+          hasDropped,
+          savingsRwf,
+          listing: {
+            ...listing,
+            photos: lPhotos,
+            coverPhoto,
+          },
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+    const droppedCount = items.filter((item) => item.hasDropped).length;
+    res.json({ items, listingIds, droppedCount });
+  } catch (error) {
+    console.error('Get price alerts error:', error);
+    res.status(500).json({ error: 'Could not load price alerts.' });
+  }
+});
+
+router.get('/price-alerts/:listingId', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const listingId = Number(req.params.listingId);
+    if (!Number.isInteger(listingId)) {
+      return res.status(400).json({ error: 'Invalid listing ID.' });
+    }
+
+    const [alert] = await db
+      .select()
+      .from(priceDropAlerts)
+      .where(and(eq(priceDropAlerts.userId, req.dbUser!.id), eq(priceDropAlerts.listingId, listingId)))
+      .limit(1);
+
+    if (!alert) {
+      return res.json({ subscribed: false, alert: null });
+    }
+
+    const [listing] = await db.select().from(listings).where(eq(listings.id, listingId)).limit(1);
+    const hasDropped = listing ? listing.priceRwf < alert.subscribedPriceRwf || alert.notifiedDrop : false;
+    const savingsRwf = listing ? Math.max(0, alert.subscribedPriceRwf - listing.priceRwf) : 0;
+
+    res.json({
+      subscribed: true,
+      alert: {
+        ...alert,
+        hasDropped,
+        savingsRwf,
+      },
+    });
+  } catch (error) {
+    console.error('Get price alert status error:', error);
+    res.status(500).json({ error: 'Could not check price alert status.' });
+  }
+});
+
+router.post('/price-alerts/:listingId', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const listingId = Number(req.params.listingId);
+    if (!Number.isInteger(listingId)) {
+      return res.status(400).json({ error: 'Invalid listing ID.' });
+    }
+
+    const [listing] = await db.select().from(listings).where(eq(listings.id, listingId)).limit(1);
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+
+    const [existing] = await db
+      .select()
+      .from(priceDropAlerts)
+      .where(and(eq(priceDropAlerts.userId, req.dbUser!.id), eq(priceDropAlerts.listingId, listingId)))
+      .limit(1);
+
+    if (existing) {
+      await db.delete(priceDropAlerts).where(eq(priceDropAlerts.id, existing.id));
+      return res.json({ subscribed: false, alert: null });
+    }
+
+    const [created] = await db
+      .insert(priceDropAlerts)
+      .values({
+        userId: req.dbUser!.id,
+        listingId,
+        subscribedPriceRwf: listing.priceRwf,
+        notifiedDrop: false,
+      })
+      .returning();
+
+    res.status(201).json({
+      subscribed: true,
+      alert: { ...created, hasDropped: false, savingsRwf: 0 },
+    });
+  } catch (error) {
+    console.error('Toggle price alert error:', error);
+    res.status(500).json({ error: 'Could not update price drop alert.' });
+  }
+});
+
+router.patch('/price-alerts/:listingId/ack', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const listingId = Number(req.params.listingId);
+    if (!Number.isInteger(listingId)) {
+      return res.status(400).json({ error: 'Invalid listing ID.' });
+    }
+
+    const [listing] = await db.select().from(listings).where(eq(listings.id, listingId)).limit(1);
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+
+    const [updated] = await db
+      .update(priceDropAlerts)
+      .set({
+        subscribedPriceRwf: listing.priceRwf,
+        notifiedDrop: false,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(priceDropAlerts.userId, req.dbUser!.id), eq(priceDropAlerts.listingId, listingId)))
+      .returning();
+
+    res.json({ alert: updated || null });
+  } catch (error) {
+    console.error('Acknowledge price drop error:', error);
+    res.status(500).json({ error: 'Could not acknowledge price drop.' });
   }
 });
 

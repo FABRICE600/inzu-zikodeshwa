@@ -14,18 +14,15 @@ import {
   signJwt,
   verifyPassword,
 } from '../lib/auth.ts';
-import { AuthRequest, requireAuth } from '../middleware/auth.ts';
+import { requireAuth } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.ts';
+import { getUploadsDir } from '../lib/uploads.ts';
 
 const router = Router();
 
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
 const avatarUpload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    destination: (_req, _file, cb) => cb(null, getUploadsDir()),
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname) || '.jpg';
       cb(null, `avatar_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);

@@ -3,6 +3,7 @@
   "appId": "1:952185890497:web:e2e26c881e19984c39d640",
   "apiKey": "AIzaSyDE40eGkpjNJTRxKRTSnlNtuEezLg9p9_I",
   "authDomain": "even-augury-rv0ns.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-35608da2-3acf-46cc-ad41-38e8e138202a",
   "storageBucket": "even-augury-rv0ns.firebasestorage.app",
   "messagingSenderId": "952185890497",
   "measurementId": "",

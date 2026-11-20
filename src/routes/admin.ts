@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { count, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../db/index.ts';
 import { listingPhotos, listings, reports, users, viewingRequests } from '../db/schema.ts';
-import { AuthRequest, requireAuth, requireRole } from '../middleware/auth.ts';
+import { requireAuth, requireRole } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.ts';
 
 const router = Router();
 

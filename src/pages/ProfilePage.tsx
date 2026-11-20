@@ -138,9 +138,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Account & Profile</h1>
-          <p className="text-sm text-zinc-500">
-            Role: <span className="capitalize font-medium text-zinc-800">{user.role}</span> ·{' '}
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Account & Profile</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Role: <span className="capitalize font-medium text-zinc-800 dark:text-zinc-200">{user.role}</span> ·{' '}
             {user.email || user.phone}
           </p>
         </div>
@@ -151,19 +151,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
             await logout();
             onLoggedOut();
           }}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-zinc-200 bg-white hover:bg-zinc-50 rounded-lg text-zinc-700 cursor-pointer"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-[#161b19] hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-200 cursor-pointer"
         >
           <LogOut className="w-4 h-4" /> Sign Out
         </button>
       </div>
 
       {error && (
-        <div className="p-3 text-sm bg-rose-50 border border-rose-200 text-rose-800 rounded-lg">
+        <div className="p-3 text-sm bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 rounded-lg">
           {error}
         </div>
       )}
       {feedback && (
-        <div className="p-3 text-sm bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg">
+        <div className="p-3 text-sm bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-lg">
           {feedback}
         </div>
       )}
@@ -171,17 +171,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
       {/* Profile Details Card */}
       <form
         onSubmit={handleSaveProfile}
-        className="bg-white border border-zinc-200 rounded-xl p-6 space-y-5"
+        className="bg-white dark:bg-[#161b19] border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 space-y-5"
       >
         <div className="flex items-center gap-4">
-          <div className="relative w-16 h-16 rounded-full bg-zinc-200 overflow-hidden flex items-center justify-center font-bold text-xl text-zinc-700 shrink-0">
+          <div className="relative w-16 h-16 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden flex items-center justify-center font-bold text-xl text-zinc-700 dark:text-zinc-200 shrink-0">
             {user.photoUrl ? (
               <img src={user.photoUrl} alt={user.fullName} className="w-full h-full object-cover" />
             ) : (
               user.fullName.charAt(0).toUpperCase()
             )}
           </div>
-          <label className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium border border-zinc-200 rounded-lg hover:bg-zinc-50 cursor-pointer">
+          <label className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 cursor-pointer">
             <Camera className="w-4 h-4" /> Upload Photo
             <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
           </label>
@@ -189,23 +189,23 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-zinc-600 mb-1">Full Name</label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Full Name</label>
             <input
               type="text"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
             />
           </div>
 
           {user.role !== 'admin' && (
             <div>
-              <label className="block text-xs font-medium text-zinc-600 mb-1">Account Role</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Account Role</label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as 'tenant' | 'landlord')}
-                className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white"
+                className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
               >
                 <option value="tenant">Tenant</option>
                 <option value="landlord">Landlord / Agent</option>
@@ -214,36 +214,36 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-zinc-600 mb-1">Phone Number</label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Phone Number</label>
             <input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+250788..."
-              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-zinc-600 mb-1">WhatsApp Number</label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">WhatsApp Number</label>
             <input
               type="tel"
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
               placeholder="+250788..."
-              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-zinc-600 mb-1">Bio</label>
+          <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Bio</label>
           <textarea
             rows={3}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             placeholder="Tell tenants or landlords about yourself..."
-            className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg"
+            className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
           />
         </div>
 
@@ -258,23 +258,23 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
       </form>
 
       {/* Phone Verification (OTP) */}
-      <div className="bg-white border border-zinc-200 rounded-xl p-6 space-y-3">
+      <div className="bg-white dark:bg-[#161b19] border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-zinc-900">Phone Number Verification (OTP)</h2>
-            <p className="text-xs text-zinc-500">
+            <h2 className="text-base font-bold text-zinc-900 dark:text-white">Phone Number Verification (OTP)</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
               {user.phone ? `Current phone: ${user.phone}` : 'Add a phone number above to verify.'}
             </p>
           </div>
           {user.phoneVerified ? (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
               <CheckCircle2 className="w-4 h-4" /> Verified
             </span>
           ) : (
             <button
               type="button"
               onClick={handleSendVerifyOtp}
-              className="px-3.5 py-2 text-xs font-semibold bg-zinc-900 text-white rounded-lg cursor-pointer"
+              className="px-3.5 py-2 text-xs font-semibold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg cursor-pointer"
             >
               Send OTP Code
             </button>
@@ -289,7 +289,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
               value={otpCode}
               onChange={(e) => setOtpCode(e.target.value)}
               placeholder={demoOtp ? `Enter ${demoOtp}` : '6-digit code'}
-              className="px-3 py-2 text-sm border border-zinc-200 rounded-lg font-mono w-40"
+              className="px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono w-40"
             />
             <button
               type="submit"
@@ -304,16 +304,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
       {/* Change Password */}
       <form
         onSubmit={handleChangePassword}
-        className="bg-white border border-zinc-200 rounded-xl p-6 space-y-4"
+        className="bg-white dark:bg-[#161b19] border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 space-y-4"
       >
-        <h2 className="text-base font-bold text-zinc-900">Change Password</h2>
+        <h2 className="text-base font-bold text-zinc-900 dark:text-white">Change Password</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <input
             type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             placeholder="Current password (blank if Google account)"
-            className="px-3 py-2 text-sm border border-zinc-200 rounded-lg"
+            className="px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
           />
           <input
             type="password"
@@ -322,22 +322,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder="New password (min 6 chars)"
-            className="px-3 py-2 text-sm border border-zinc-200 rounded-lg"
+            className="px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
           />
         </div>
         <button
           type="submit"
-          className="px-4 py-2 text-sm font-semibold bg-zinc-900 text-white rounded-lg cursor-pointer"
+          className="px-4 py-2 text-sm font-semibold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg cursor-pointer"
         >
           Update Password
         </button>
       </form>
 
       {/* Delete Account */}
-      <div className="bg-white border border-rose-200 rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#161b19] border border-rose-200 dark:border-rose-900/70 rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-bold text-rose-900">Delete Account</h2>
-          <p className="text-xs text-zinc-600">
+          <h2 className="text-base font-bold text-rose-900 dark:text-rose-400">Delete Account</h2>
+          <p className="text-xs text-zinc-600 dark:text-zinc-400">
             Permanently remove your profile, saved searches, and any listings you posted.
           </p>
         </div>
@@ -346,7 +346,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
             <button
               type="button"
               onClick={() => setConfirmDelete(false)}
-              className="px-3 py-2 text-xs text-zinc-600 cursor-pointer"
+              className="px-3 py-2 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer"
             >
               Cancel
             </button>
@@ -362,7 +362,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onLoggedOut }) => {
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer"
           >
             <Trash2 className="w-4 h-4" /> Delete Account
           </button>

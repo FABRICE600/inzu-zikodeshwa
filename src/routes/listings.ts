@@ -1,25 +1,22 @@
 import { Router } from 'express';
-import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { db } from '../db/index.ts';
-import { listingPhotos, listings, users } from '../db/schema.ts';
+import { listingPhotos, listings, priceDropAlerts, users } from '../db/schema.ts';
 import { haversineDistanceKm, RWANDA_LANDMARKS } from '../lib/rwandaData.ts';
-import { AuthRequest, optionalAuth, requireAuth, requireRole } from '../middleware/auth.ts';
+import { getUploadsDir } from '../lib/uploads.ts';
+import { optionalAuth, requireAuth, requireRole } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.ts';
 
 const router = Router();
 
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
 const listingUpload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    destination: (_req, _file, cb) => cb(null, getUploadsDir()),
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname) || '.jpg';
       cb(null, `listing_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
@@ -55,6 +52,32 @@ const listingInputSchema = z.object({
   availableFrom: z.string().min(4),
   status: z.enum(['available', 'rented', 'hidden']).default('available'),
   photos: z.array(photoInputSchema).min(1, 'Upload at least 1 photo').max(15, 'Maximum 15 photos allowed'),
+});
+
+const draftInputSchema = z.object({
+  isDraft: z.literal(true),
+  title: z.string().min(2, 'Enter a listing title (min 2 chars) to save a draft').max(160),
+  description: z.string().max(3000).optional().default(''),
+  propertyType: z
+    .enum(['house', 'apartment', 'single_room', 'shared_room', 'studio', 'hostel', 'commercial'])
+    .default('apartment'),
+  priceRwf: z.coerce.number().int().min(0).max(50000000).optional().default(0),
+  depositRwf: z.coerce.number().int().min(0).max(50000000).optional().default(0),
+  bedrooms: z.coerce.number().int().min(0).max(20).optional().default(1),
+  bathrooms: z.coerce.number().int().min(0).max(20).optional().default(1),
+  sizeSqm: z.coerce.number().int().min(1).max(10000).nullable().optional(),
+  furnished: z.boolean().optional().default(false),
+  province: z.string().optional().default('Kigali City'),
+  district: z.string().optional().default('Gasabo'),
+  sector: z.string().optional().default('Kimihurura'),
+  cell: z.string().max(100).optional().or(z.literal('')),
+  streetLandmark: z.string().max(200).optional().default(''),
+  latitude: z.coerce.number().min(-3).max(-1).optional().default(-1.9536),
+  longitude: z.coerce.number().min(28.5).max(31).optional().default(30.0928),
+  amenities: z.array(z.string()).optional().default([]),
+  rules: z.array(z.string()).optional().default([]),
+  availableFrom: z.string().optional().default(() => new Date().toISOString().slice(0, 10)),
+  photos: z.array(photoInputSchema).max(15, 'Maximum 15 photos allowed').optional().default([]),
 });
 
 async function hydrateListings(rows: Array<typeof listings.$inferSelect>, landmarkId?: string) {
@@ -297,18 +320,25 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
 
 router.post('/', requireAuth, requireRole('landlord', 'admin'), async (req: AuthRequest, res) => {
   try {
-    const parsed = listingInputSchema.safeParse(req.body);
+    const isDraft = req.body?.isDraft === true;
+    const parsed = isDraft
+      ? draftInputSchema.safeParse(req.body)
+      : listingInputSchema.safeParse(req.body);
+
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid listing payload.' });
     }
 
-    const { photos, ...data } = parsed.data;
     const approvalStatus = req.dbUser!.role === 'admin' ? 'approved' : 'pending';
+    const rawData = parsed.data as any;
+    const photos: Array<{ url: string; isCover?: boolean }> = rawData.photos || [];
+    const { photos: _p, isDraft: _d, ...data } = rawData;
 
     const [created] = await db
       .insert(listings)
       .values({
         ...data,
+        status: isDraft ? 'hidden' : data.status || 'available',
         cell: data.cell || null,
         sizeSqm: data.sizeSqm ?? null,
         landlordId: req.dbUser!.id,
@@ -316,21 +346,23 @@ router.post('/', requireAuth, requireRole('landlord', 'admin'), async (req: Auth
       })
       .returning();
 
-    const coverIndex = Math.max(0, photos.findIndex((p) => p.isCover));
-    await db.insert(listingPhotos).values(
-      photos.map((p, idx) => ({
-        listingId: created.id,
-        url: p.url,
-        displayOrder: idx,
-        isCover: idx === coverIndex,
-      }))
-    );
+    if (photos.length > 0) {
+      const coverIndex = Math.max(0, photos.findIndex((p) => p.isCover));
+      await db.insert(listingPhotos).values(
+        photos.map((p, idx) => ({
+          listingId: created.id,
+          url: p.url,
+          displayOrder: idx,
+          isCover: idx === coverIndex,
+        }))
+      );
+    }
 
     const [hydrated] = await hydrateListings([created]);
     res.status(201).json({ listing: hydrated });
   } catch (error) {
     console.error('Create listing error:', error);
-    res.status(500).json({ error: 'Unable to publish listing.' });
+    res.status(500).json({ error: 'Unable to save listing.' });
   }
 });
 
@@ -344,17 +376,24 @@ router.put('/:id', requireAuth, requireRole('landlord', 'admin'), async (req: Au
       return res.status(403).json({ error: 'You do not have permission to edit this listing.' });
     }
 
-    const parsed = listingInputSchema.safeParse(req.body);
+    const isDraft = req.body?.isDraft === true;
+    const parsed = isDraft
+      ? draftInputSchema.safeParse(req.body)
+      : listingInputSchema.safeParse(req.body);
+
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid listing data.' });
     }
 
-    const { photos, ...data } = parsed.data;
+    const rawData = parsed.data as any;
+    const photos: Array<{ url: string; isCover?: boolean }> = rawData.photos || [];
+    const { photos: _p, isDraft: _d, ...data } = rawData;
 
     const [updated] = await db
       .update(listings)
       .set({
         ...data,
+        status: isDraft ? 'hidden' : data.status || 'available',
         cell: data.cell || null,
         sizeSqm: data.sizeSqm ?? null,
         updatedAt: new Date(),
@@ -363,15 +402,33 @@ router.put('/:id', requireAuth, requireRole('landlord', 'admin'), async (req: Au
       .returning();
 
     await db.delete(listingPhotos).where(eq(listingPhotos.listingId, id));
-    const coverIndex = Math.max(0, photos.findIndex((p) => p.isCover));
-    await db.insert(listingPhotos).values(
-      photos.map((p, idx) => ({
-        listingId: id,
-        url: p.url,
-        displayOrder: idx,
-        isCover: idx === coverIndex,
-      }))
-    );
+    if (photos.length > 0) {
+      const coverIndex = Math.max(0, photos.findIndex((p) => p.isCover));
+      await db.insert(listingPhotos).values(
+        photos.map((p, idx) => ({
+          listingId: id,
+          url: p.url,
+          displayOrder: idx,
+          isCover: idx === coverIndex,
+        }))
+      );
+    }
+
+    if (typeof data.priceRwf === 'number' && data.priceRwf > 0 && data.priceRwf < existing.priceRwf) {
+      await db
+        .update(priceDropAlerts)
+        .set({
+          notifiedDrop: true,
+          lastNotifiedPriceRwf: data.priceRwf,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(priceDropAlerts.listingId, id),
+            gt(priceDropAlerts.subscribedPriceRwf, data.priceRwf)
+          )
+        );
+    }
 
     const [hydrated] = await hydrateListings([updated]);
     res.json({ listing: hydrated });
