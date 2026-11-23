@@ -4,6 +4,7 @@ import { apiRequest, ListingItem } from '../lib/api.ts';
 import { formatRwf } from '../lib/rwandaData.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { ListingCard } from '../components/ListingCard.tsx';
+import { VirtualTourModal } from '../components/VirtualTourModal.tsx';
 import { SearchFiltersState } from './HomeSearchPage.tsx';
 
 interface TenantPortalProps {
@@ -22,6 +23,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({
   const [droppedCount, setDroppedCount] = useState(0);
   const [savedSearches, setSavedSearches] = useState<any[]>([]);
   const [viewings, setViewings] = useState<any[]>([]);
+  const [tourListing, setTourListing] = useState<ListingItem | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
@@ -146,6 +148,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({
                 listing={item}
                 isFavorited
                 onToggleFavorite={handleUnfavorite}
+                onOpenTour={(target) => setTourListing(target)}
                 onSelect={onSelectListing}
               />
             ))}
@@ -302,6 +305,14 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({
             </div>
           ))}
         </div>
+      )}
+
+      {tourListing && (
+        <VirtualTourModal
+          listing={tourListing}
+          onClose={() => setTourListing(null)}
+          onOpenListing={onSelectListing}
+        />
       )}
     </div>
   );

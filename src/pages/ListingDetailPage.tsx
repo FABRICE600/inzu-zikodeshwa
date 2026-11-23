@@ -288,7 +288,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-        <div className="h-96 bg-zinc-200 rounded-xl animate-pulse" />
+        <div className="h-96 bg-zinc-200 dark:bg-zinc-800 rounded-xl animate-pulse" />
       </div>
     );
   }
@@ -296,11 +296,11 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   if (error || !listing) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
-        <p className="text-lg font-semibold text-zinc-900">{error || 'Listing unavailable'}</p>
+        <p className="text-lg font-semibold text-zinc-900 dark:text-white">{error || 'Listing unavailable'}</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-4 px-4 py-2 bg-zinc-900 text-white text-sm rounded-lg cursor-pointer"
+          className="mt-4 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-lg cursor-pointer"
         >
           Back to Search
         </button>

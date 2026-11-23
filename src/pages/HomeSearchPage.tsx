@@ -451,6 +451,19 @@ export const HomeSearchPage: React.FC<HomeSearchPageProps> = ({
             >
               <GraduationCap className="w-3.5 h-3.5" /> Student Stays
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = { ...DEFAULT_FILTERS, propertyType: 'commercial' };
+                setFilters(next);
+                setAppliedFilters(next);
+                setPage(1);
+                document.getElementById('listings-viewport')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/20 rounded-xl backdrop-blur-sm transition-colors cursor-pointer whitespace-nowrap interactive-press"
+            >
+              <Building2 className="w-3.5 h-3.5" /> Ubucuruzi (Commercial)
+            </button>
           </div>
         </div>
       </section>

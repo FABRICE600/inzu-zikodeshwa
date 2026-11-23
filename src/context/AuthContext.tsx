@@ -31,6 +31,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        setLoading(false);
+      }
+    }, 2500);
+
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         try {
@@ -43,9 +51,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setToken(null);
         }
       }
-      setLoading(false);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        setLoading(false);
+      }
     });
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -94,15 +109,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithGoogle = async (role?: 'tenant' | 'landlord') => {
-    const cred = await signInWithPopup(auth, googleAuthProvider);
-    const idToken = await cred.user.getIdToken();
-    setToken(idToken);
-    const data = await apiRequest<{ user: UserProfile }>('/api/auth/sync-google', {
-      method: 'POST',
-      token: idToken,
-      body: JSON.stringify({ role }),
-    });
-    setUser(data.user);
+    try {
+      const cred = await signInWithPopup(auth, googleAuthProvider);
+      const idToken = await cred.user.getIdToken();
+      setToken(idToken);
+      const data = await apiRequest<{ user: UserProfile }>('/api/auth/sync-google', {
+        method: 'POST',
+        token: idToken,
+        body: JSON.stringify({ role }),
+      });
+      setUser(data.user);
+    } catch (err: any) {
+      if (err?.code === 'auth/unauthorized-domain') {
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+        throw new Error(
+          `Google Sign-In requires adding "${host}" to Firebase Console → Authentication → Settings → Authorized domains. You can also sign in with Email/Phone & Password above.`
+        );
+      }
+      throw err;
+    }
   };
 
   const logout = async () => {

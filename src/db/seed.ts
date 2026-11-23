@@ -1,11 +1,141 @@
-import { and, count, eq } from 'drizzle-orm';
-import { db } from './index.ts';
+import { and, count, eq, sql } from 'drizzle-orm';
+import { db, isDatabaseConfigured } from './index.ts';
 import { listingPhotos, listings, users } from './schema.ts';
-import { hashPassword } from '../lib/auth.ts';
+import { hashPassword, verifyPassword } from '../lib/auth.ts';
 
 let seedPromise: Promise<void> | null = null;
 
+async function ensureSchema(): Promise<void> {
+  const existing = await db.execute(sql`SELECT to_regclass('public.users') AS tbl`);
+  const firstRow = (existing as { rows?: Array<{ tbl?: string | null }> }).rows?.[0];
+  if (firstRow?.tbl) {
+    return;
+  }
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      uid TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'tenant',
+      full_name TEXT NOT NULL,
+      email TEXT UNIQUE,
+      phone TEXT UNIQUE,
+      whatsapp TEXT,
+      password_hash TEXT,
+      photo_url TEXT,
+      bio TEXT,
+      phone_verified BOOLEAN NOT NULL DEFAULT false,
+      is_suspended BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS otp_codes (
+      id SERIAL PRIMARY KEY,
+      target TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      code TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      used BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS listings (
+      id SERIAL PRIMARY KEY,
+      landlord_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      property_type TEXT NOT NULL,
+      price_rwf INTEGER NOT NULL,
+      deposit_rwf INTEGER NOT NULL DEFAULT 0,
+      bedrooms INTEGER NOT NULL DEFAULT 1,
+      bathrooms INTEGER NOT NULL DEFAULT 1,
+      size_sqm INTEGER,
+      furnished BOOLEAN NOT NULL DEFAULT false,
+      province TEXT NOT NULL,
+      district TEXT NOT NULL,
+      sector TEXT NOT NULL,
+      cell TEXT,
+      street_landmark TEXT NOT NULL,
+      latitude DOUBLE PRECISION NOT NULL,
+      longitude DOUBLE PRECISION NOT NULL,
+      amenities JSONB NOT NULL DEFAULT '[]'::jsonb,
+      rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+      available_from TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'available',
+      approval_status TEXT NOT NULL DEFAULT 'pending',
+      views_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS listing_photos (
+      id SERIAL PRIMARY KEY,
+      listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      is_cover BOOLEAN NOT NULL DEFAULT false
+    );
+
+    CREATE TABLE IF NOT EXISTS favorites (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS favorites_user_listing_idx ON favorites(user_id, listing_id);
+
+    CREATE TABLE IF NOT EXISTS saved_searches (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      filters JSONB NOT NULL,
+      notify_enabled BOOLEAN NOT NULL DEFAULT true,
+      last_checked_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS viewing_requests (
+      id SERIAL PRIMARY KEY,
+      listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+      tenant_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      landlord_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      request_type TEXT NOT NULL DEFAULT 'viewing',
+      preferred_date TEXT,
+      preferred_time TEXT,
+      message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS reports (
+      id SERIAL PRIMARY KEY,
+      listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+      reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      details TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS price_drop_alerts (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+      subscribed_price_rwf INTEGER NOT NULL,
+      last_notified_price_rwf INTEGER,
+      notified_drop BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS price_drop_alerts_user_listing_idx ON price_drop_alerts(user_id, listing_id);
+  `);
+}
+
 export async function ensureSeeded(): Promise<void> {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
   if (!seedPromise) {
     seedPromise = runSeed().catch((err) => {
       seedPromise = null;
@@ -729,15 +859,16 @@ async function insertSeedListing(item: SeedListingDef, landlord1Id: number, land
 }
 
 async function runSeed(): Promise<void> {
+  await ensureSchema();
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
 
   let landlord1Id: number;
   let landlord2Id: number;
 
   const adminEmail = 'cumuhirefabrice24@gmail.com';
-  const adminPasswordHash = await hashPassword('fabrice@2007');
 
   if (Number(userCount) === 0) {
+    const adminPasswordHash = await hashPassword('fabrice@2007');
     const passwordHash = await hashPassword('Password123!');
 
     const [, landlord1, landlord2] = await db
@@ -793,23 +924,42 @@ async function runSeed(): Promise<void> {
     landlord1Id = landlord1.id;
     landlord2Id = landlord2.id;
   } else {
-    const allUsers = await db.select({ id: users.id, uid: users.uid, role: users.role, email: users.email }).from(users);
+    const allUsers = await db
+      .select({
+        id: users.id,
+        uid: users.uid,
+        role: users.role,
+        email: users.email,
+        passwordHash: users.passwordHash,
+      })
+      .from(users);
     const existingAdmin =
-      allUsers.find((u) => u.uid === 'seed-admin-rw') ||
       allUsers.find((u) => u.email === adminEmail) ||
+      allUsers.find((u) => u.uid === 'seed-admin-rw') ||
       allUsers.find((u) => u.role === 'admin');
 
     if (existingAdmin) {
-      await db
-        .update(users)
-        .set({
-          fullName: 'Cumuhire Fabrice',
-          email: adminEmail,
-          passwordHash: adminPasswordHash,
-          role: 'admin',
-        })
-        .where(eq(users.id, existingAdmin.id));
+      const passwordMatches =
+        Boolean(existingAdmin.passwordHash) &&
+        (await verifyPassword('fabrice@2007', existingAdmin.passwordHash!));
+      if (
+        existingAdmin.email !== adminEmail ||
+        existingAdmin.role !== 'admin' ||
+        !passwordMatches
+      ) {
+        const adminPasswordHash = await hashPassword('fabrice@2007');
+        await db
+          .update(users)
+          .set({
+            fullName: 'Cumuhire Fabrice',
+            email: adminEmail,
+            passwordHash: adminPasswordHash,
+            role: 'admin',
+          })
+          .where(eq(users.id, existingAdmin.id));
+      }
     } else {
+      const adminPasswordHash = await hashPassword('fabrice@2007');
       await db.insert(users).values({
         uid: 'seed-admin-rw',
         role: 'admin',

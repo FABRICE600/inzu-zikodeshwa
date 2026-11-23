@@ -84,9 +84,21 @@ export async function apiRequest<T = any>(
     body,
   });
 
-  const data = await res.json().catch(() => ({}));
+  const rawText = await res.text().catch(() => '');
+  let data: any = {};
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      data = {};
+    }
+  }
   if (!res.ok) {
-    throw new Error(data.error || `Request failed (${res.status})`);
+    const fallbackText =
+      !data.error && rawText && !rawText.trim().startsWith('<')
+        ? rawText.trim().slice(0, 180)
+        : '';
+    throw new Error(data.error || fallbackText || `Request failed (${res.status})`);
   }
   return data as T;
 }

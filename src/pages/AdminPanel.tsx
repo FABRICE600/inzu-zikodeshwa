@@ -22,12 +22,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [usersList, setUsersList] = useState<any[]>([]);
   const [reportsList, setReportsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminError, setAdminError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [approvalFilter, setApprovalFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   const loadAdmin = useCallback(async () => {
     if (!token || user?.role !== 'admin') return;
     setLoading(true);
+    setAdminError('');
     try {
       const [ov, ls, us, rp] = await Promise.all([
         apiRequest<{ stats: any }>('/api/admin/overview', { token }),
@@ -39,6 +41,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       setListings(ls.items);
       setUsersList(us.items);
       setReportsList(rp.items);
+    } catch (err: any) {
+      setAdminError(err.message || 'Could not load admin dashboard.');
     } finally {
       setLoading(false);
     }
@@ -156,6 +160,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           Approve rental listings, manage user accounts, and review safety reports.
         </p>
       </div>
+
+      {adminError && (
+        <div className="p-3 text-sm bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 rounded-lg">
+          {adminError}
+        </div>
+      )}
 
       {/* KPI Strip */}
       {stats && (

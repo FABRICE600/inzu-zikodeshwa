@@ -25,6 +25,7 @@ async function resolveUserFromToken(token: string): Promise<DbUser | null> {
 
   // 2. Verify Firebase ID Token (Google Sign-In)
   try {
+    if (!adminAuth) return null;
     const decoded = await adminAuth.verifyIdToken(token);
     const email = decoded.email || null;
     const name = decoded.name || (email ? email.split('@')[0] : 'Rwanda User');

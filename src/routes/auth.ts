@@ -152,9 +152,15 @@ router.post('/login', async (req, res) => {
 
     const token = signJwt({ userId: user.id, uid: user.uid, role: user.role });
     res.json({ token, user: sanitizeUser(user) });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed. Please try again.' });
+    const code = error?.code || error?.cause?.code;
+    if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ETIMEDOUT') {
+      return res.status(503).json({
+        error: 'Database connection failed. Please verify your PostgreSQL host and credentials.',
+      });
+    }
+    res.status(500).json({ error: error?.message || 'Login failed. Please try again.' });
   }
 });
 
